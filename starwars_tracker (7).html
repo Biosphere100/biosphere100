@@ -1,0 +1,929 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Star Wars Canon Tracker</title>
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Rajdhani:wght@300;400;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #03060e;
+    --panel: #0a1020;
+    --panel-hover: #0d1628;
+    --border: #162035;
+    --gold: #c9a84c;
+    --blue: #4a9eff;
+    --blue-dim: #1a3a6a;
+    --green: #3ddc84;
+    --saber-blue: #4fc3f7;
+    --saber-glow: rgba(79,195,247,0.5);
+    --text: #c8d8f0;
+    --text-dim: #5a6a8a;
+    --seen-bg: #071510;
+    --seen-border: #1a4a2a;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Rajdhani', sans-serif;
+    font-size: 15px;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* ── CANVAS BACKGROUND ── */
+  #space-canvas {
+    position: fixed;
+    inset: 0;
+    z-index: 0;
+    pointer-events: none;
+  }
+
+  .container {
+    max-width: 960px;
+    margin: 0 auto;
+    padding: 40px 24px 80px;
+    position: relative;
+    z-index: 1;
+  }
+
+  /* ── HEADER ── */
+  header {
+    text-align: center;
+    margin-bottom: 44px;
+    padding-bottom: 32px;
+    border-bottom: 1px solid var(--border);
+    position: relative;
+  }
+
+  header::after {
+    content: '';
+    position: absolute;
+    bottom: -1px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 220px;
+    height: 2px;
+    background: linear-gradient(90deg, transparent, var(--gold), transparent);
+  }
+
+  .header-label {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 10px;
+    letter-spacing: 6px;
+    color: var(--gold);
+    text-transform: uppercase;
+    margin-bottom: 14px;
+    opacity: 0.8;
+  }
+
+  h1 {
+    font-family: 'Orbitron', sans-serif;
+    font-size: clamp(22px, 4vw, 38px);
+    font-weight: 900;
+    letter-spacing: 4px;
+    color: #fff;
+    text-transform: uppercase;
+    line-height: 1.1;
+  }
+
+  h1 span {
+    color: var(--gold);
+    display: block;
+    font-size: 0.55em;
+    letter-spacing: 8px;
+    font-weight: 400;
+    margin-top: 6px;
+  }
+
+  /* ── LIGHTSABER PROGRESS ── */
+  .saber-section {
+    margin-top: 32px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .saber-label {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 11px;
+    letter-spacing: 3px;
+    color: var(--text-dim);
+    text-transform: uppercase;
+  }
+
+  .saber-wrap {
+    display: flex;
+    align-items: center;
+    gap: 0;
+    width: 360px;
+    max-width: 90vw;
+  }
+
+  /* Hilt */
+  .saber-hilt {
+    flex-shrink: 0;
+    width: 44px;
+    height: 20px;
+    background: linear-gradient(180deg, #888 0%, #555 40%, #333 60%, #666 100%);
+    border-radius: 3px 0 0 3px;
+    position: relative;
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.15), inset 0 -1px 0 rgba(0,0,0,0.4);
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    padding-right: 4px;
+  }
+
+  .saber-hilt::before {
+    content: '';
+    position: absolute;
+    left: 8px;
+    top: 4px;
+    width: 6px;
+    height: 12px;
+    background: #222;
+    border-radius: 2px;
+    box-shadow: inset 0 0 3px rgba(0,0,0,0.8);
+  }
+
+  .saber-hilt::after {
+    content: '';
+    position: absolute;
+    right: -1px;
+    top: 3px;
+    width: 3px;
+    height: 14px;
+    background: linear-gradient(180deg, #aaa, #555);
+    border-radius: 1px;
+  }
+
+  /* Blade track */
+  .saber-track {
+    flex: 1;
+    height: 8px;
+    background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(79,195,247,0.12);
+    border-radius: 4px;
+    overflow: visible;
+    position: relative;
+  }
+
+  /* Blade fill */
+  .saber-blade {
+    height: 100%;
+    width: 0%;
+    background: linear-gradient(90deg, #a0dfff, var(--saber-blue) 60%, #e8f8ff);
+    border-radius: 0 4px 4px 0;
+    transition: width 0.6s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+    position: relative;
+    box-shadow:
+      0 0 6px 1px var(--saber-blue),
+      0 0 14px 3px rgba(79,195,247,0.6),
+      0 0 30px 6px rgba(79,195,247,0.25);
+  }
+
+  .saber-blade::after {
+    content: '';
+    position: absolute;
+    right: -8px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 16px;
+    height: 16px;
+    background: radial-gradient(circle, #fff 0%, var(--saber-blue) 40%, transparent 75%);
+    border-radius: 50%;
+    opacity: 0.9;
+    animation: tipPulse 2s ease-in-out infinite;
+  }
+
+  @keyframes tipPulse {
+    0%, 100% { opacity: 0.8; transform: translateY(-50%) scale(1); }
+    50% { opacity: 1; transform: translateY(-50%) scale(1.3); }
+  }
+
+  .saber-count {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 13px;
+    color: var(--saber-blue);
+    margin-top: 4px;
+    text-shadow: 0 0 10px var(--saber-blue);
+    letter-spacing: 1px;
+  }
+
+  .saber-count span { color: var(--text-dim); font-size: 11px; }
+
+  /* ── ORDER TOGGLE ── */
+  .order-toggle-wrap {
+    display: flex;
+    justify-content: center;
+    margin-bottom: 28px;
+  }
+
+  .order-toggle {
+    display: flex;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 2px;
+    overflow: hidden;
+    position: relative;
+  }
+
+  .order-btn {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 9px;
+    letter-spacing: 2.5px;
+    padding: 10px 22px;
+    cursor: pointer;
+    background: transparent;
+    border: none;
+    color: var(--text-dim);
+    text-transform: uppercase;
+    transition: color 0.25s;
+    position: relative;
+    z-index: 1;
+    display: flex;
+    align-items: center;
+    gap: 7px;
+  }
+
+  .order-btn .icon { font-size: 13px; }
+
+  .order-btn.active { color: #fff; }
+
+  .order-slider {
+    position: absolute;
+    top: 0; bottom: 0;
+    width: 50%;
+    background: linear-gradient(135deg, #0e1e3a, #162a50);
+    border: 1px solid var(--blue-dim);
+    transition: left 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    left: 0;
+    box-shadow: inset 0 0 20px rgba(74,158,255,0.08);
+  }
+
+  .order-slider.right { left: 50%; }
+
+  .order-divider {
+    width: 1px;
+    background: var(--border);
+    align-self: stretch;
+  }
+
+  /* ── FILTERS ── */
+  .controls {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 24px;
+    align-items: center;
+  }
+
+  .filter-label {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 9px;
+    letter-spacing: 3px;
+    color: var(--text-dim);
+    margin-right: 4px;
+  }
+
+  .filter-btn {
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--text-dim);
+    font-family: 'Rajdhani', sans-serif;
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: 1px;
+    padding: 5px 14px;
+    cursor: pointer;
+    transition: all 0.2s;
+    text-transform: uppercase;
+  }
+
+  .filter-btn:hover { border-color: var(--gold); color: var(--gold); }
+  .filter-btn.active { background: var(--gold); border-color: var(--gold); color: #000; }
+
+  .actions { margin-left: auto; display: flex; gap: 8px; }
+
+  .action-btn {
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--text-dim);
+    font-family: 'Rajdhani', sans-serif;
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 1px;
+    padding: 5px 12px;
+    cursor: pointer;
+    transition: all 0.2s;
+    text-transform: uppercase;
+  }
+
+  .action-btn:hover { border-color: var(--blue); color: var(--blue); }
+
+  /* ── ENTRY LIST ── */
+  #entry-list { position: relative; }
+
+  .entry {
+    display: grid;
+    grid-template-columns: 36px 48px 1fr auto auto;
+    align-items: center;
+    gap: 12px;
+    padding: 11px 16px;
+    margin-bottom: 4px;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-left: 3px solid transparent;
+    cursor: pointer;
+    transition: background 0.2s, border-color 0.2s;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .entry::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(90deg, rgba(74,158,255,0.03), transparent);
+    opacity: 0;
+    transition: opacity 0.2s;
+  }
+
+  .entry:hover::before { opacity: 1; }
+  .entry:hover { border-color: var(--blue-dim); border-left-color: var(--blue); }
+
+  .entry.seen {
+    background: var(--seen-bg);
+    border-color: var(--seen-border);
+    border-left-color: var(--green);
+  }
+
+  .entry.seen::before {
+    background: linear-gradient(90deg, rgba(61,220,132,0.05), transparent);
+    opacity: 1;
+  }
+
+  .entry.hidden { display: none; }
+
+  /* Animate reorder */
+  .entry.moving {
+    transition: background 0.2s, border-color 0.2s, transform 0.35s ease, opacity 0.35s ease;
+  }
+
+  .check-wrap { display: flex; align-items: center; justify-content: center; }
+
+  .check-box {
+    width: 20px;
+    height: 20px;
+    border: 1.5px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s;
+    flex-shrink: 0;
+  }
+
+  .check-box::after {
+    content: '✓';
+    font-size: 13px;
+    color: var(--green);
+    opacity: 0;
+    transform: scale(0.5);
+    transition: all 0.2s;
+  }
+
+  .entry.seen .check-box { border-color: var(--green); background: rgba(61,220,132,0.08); }
+  .entry.seen .check-box::after { opacity: 1; transform: scale(1); }
+
+  .entry-num {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 10px;
+    color: var(--text-dim);
+    text-align: right;
+    transition: color 0.3s;
+  }
+
+  .entry-info { min-width: 0; }
+
+  .entry-title {
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--text);
+    letter-spacing: 0.3px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    transition: color 0.2s;
+  }
+
+  .entry.seen .entry-title { color: #fff; }
+
+  .entry-dates {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-top: 2px;
+    flex-wrap: wrap;
+  }
+
+  .entry-date { font-size: 12px; color: var(--text-dim); letter-spacing: 0.5px; }
+
+  .entry-universe {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 9px;
+    letter-spacing: 1px;
+    color: #7a9acc;
+    background: rgba(74,130,200,0.08);
+    border: 1px solid rgba(74,130,200,0.2);
+    padding: 1px 6px;
+    white-space: nowrap;
+  }
+
+  .type-badge {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 8px;
+    letter-spacing: 1.5px;
+    padding: 3px 8px;
+    border: 1px solid;
+    text-transform: uppercase;
+    white-space: nowrap;
+  }
+
+  .badge-film     { color: var(--gold);  border-color: rgba(201,168,76,0.35);  background: rgba(201,168,76,0.06); }
+  .badge-live     { color: var(--blue);  border-color: rgba(74,158,255,0.35);  background: rgba(74,158,255,0.06); }
+  .badge-animated { color: #b98cf0;      border-color: rgba(185,140,240,0.35); background: rgba(185,140,240,0.06); }
+
+  footer {
+    text-align: center;
+    margin-top: 60px;
+    padding-top: 24px;
+    border-top: 1px solid var(--border);
+    font-family: 'Orbitron', sans-serif;
+    font-size: 9px;
+    letter-spacing: 3px;
+    color: var(--text-dim);
+    text-transform: uppercase;
+  }
+
+  @media (max-width: 600px) {
+    .entry { grid-template-columns: 28px 36px 1fr auto; gap: 8px; padding: 10px 10px; }
+    .type-badge { display: none; }
+    .entry-title { font-size: 14px; }
+    .entry-universe { display: none; }
+    .saber-wrap { width: 280px; }
+    .order-btn { font-size: 8px; padding: 10px 14px; }
+  }
+</style>
+</head>
+<body>
+
+<canvas id="space-canvas"></canvas>
+
+<div class="container">
+  <header>
+    <div class="header-label">A Long Time Ago In A Galaxy Far, Far Away</div>
+    <h1>Star Wars<span>Canon Tracker</span></h1>
+
+    <div class="saber-section">
+      <div class="saber-label">Progress</div>
+      <div class="saber-wrap">
+        <div class="saber-track">
+          <div class="saber-blade" id="saberBlade"></div>
+        </div>
+      </div>
+      <div class="saber-count" id="saberCount">0 <span>/ 47 seen</span></div>
+    </div>
+  </header>
+
+  <!-- Order Toggle -->
+  <div class="order-toggle-wrap">
+    <div class="order-toggle">
+      <div class="order-slider" id="orderSlider"></div>
+      <button class="order-btn active" id="btnRelease" onclick="setOrder('release')">
+        <span class="icon">📅</span> Release Order
+      </button>
+      <div class="order-divider"></div>
+      <button class="order-btn" id="btnUniverse" onclick="setOrder('universe')">
+        <span class="icon">🌌</span> In-Universe Order
+      </button>
+    </div>
+  </div>
+
+  <!-- Filters -->
+  <div class="controls">
+    <span class="filter-label">Filter //</span>
+    <button class="filter-btn active" data-filter="all">All</button>
+    <button class="filter-btn" data-filter="film">Films</button>
+    <button class="filter-btn" data-filter="live">Live-Action</button>
+    <button class="filter-btn" data-filter="animated">Animated</button>
+    <button class="filter-btn" data-filter="unseen">Unseen</button>
+    <div class="actions">
+      <button class="action-btn" id="markAll">Mark All</button>
+      <button class="action-btn" id="clearAll">Clear All</button>
+    </div>
+  </div>
+
+  <div id="entry-list"></div>
+
+  <footer>Star Wars &amp; All Related Content © Lucasfilm Ltd. &amp; Disney · Fan-Made Tracker</footer>
+</div>
+
+<script>
+// ─────────────────────────────────────────────
+// DATA
+// Each entry: { id, title, type, releaseDate (sortable), releaseDateDisplay, universeSort (number, BBY=negative, ABY=positive), universeDateDisplay }
+// universeSort: BBY years stored as negative (e.g. 32 BBY = -3200), ABY as positive (e.g. 9 ABY = 900), "Various" = null
+// Multiplied by 100 to handle half-years
+// ─────────────────────────────────────────────
+
+const ENTRIES = [
+  { id:'01', title:'A New Hope',                        type:'film',     releaseDate:'1977-05-25', releaseDateDisplay:'May 25, 1977',  uSort: -0,    uDisplay:'0 BBY/ABY' },
+  { id:'02', title:'The Empire Strikes Back',           type:'film',     releaseDate:'1980-05-21', releaseDateDisplay:'May 21, 1980',  uSort: 300,   uDisplay:'3 ABY' },
+  { id:'03', title:'Return of the Jedi',                type:'film',     releaseDate:'1983-05-25', releaseDateDisplay:'May 25, 1983',  uSort: 400,   uDisplay:'4 ABY' },
+  { id:'04', title:'The Phantom Menace',                type:'film',     releaseDate:'1999-05-19', releaseDateDisplay:'May 19, 1999',  uSort: -3200, uDisplay:'32 BBY' },
+  { id:'05', title:'Attack of the Clones',              type:'film',     releaseDate:'2002-05-16', releaseDateDisplay:'May 16, 2002',  uSort: -2200, uDisplay:'22 BBY' },
+  { id:'06', title:'Revenge of the Sith',               type:'film',     releaseDate:'2005-05-19', releaseDateDisplay:'May 19, 2005',  uSort: -1900, uDisplay:'19 BBY' },
+  { id:'07', title:'The Clone Wars',                    type:'film',     releaseDate:'2008-08-15', releaseDateDisplay:'Aug 15, 2008',  uSort: -2200, uDisplay:'22 BBY' },
+  { id:'08', title:'The Clone Wars – Season 1',         type:'animated', releaseDate:'2008-10-03', releaseDateDisplay:'Oct 3, 2008',   uSort: -2200, uDisplay:'22 BBY' },
+  { id:'09', title:'The Clone Wars – Season 2',         type:'animated', releaseDate:'2009-10-02', releaseDateDisplay:'Oct 2, 2009',   uSort: -2150, uDisplay:'22–21 BBY' },
+  { id:'10', title:'The Clone Wars – Season 3',         type:'animated', releaseDate:'2010-09-17', releaseDateDisplay:'Sep 17, 2010',  uSort: -2050, uDisplay:'21–20 BBY' },
+  { id:'11', title:'The Clone Wars – Season 4',         type:'animated', releaseDate:'2011-09-16', releaseDateDisplay:'Sep 16, 2011',  uSort: -2050, uDisplay:'21–20 BBY' },
+  { id:'12', title:'The Clone Wars – Season 5',         type:'animated', releaseDate:'2012-09-29', releaseDateDisplay:'Sep 29, 2012',  uSort: -1950, uDisplay:'20–19 BBY' },
+  { id:'13', title:'The Clone Wars – Season 6',         type:'animated', releaseDate:'2014-03-07', releaseDateDisplay:'Mar 7, 2014',   uSort: -1900, uDisplay:'19 BBY' },
+  { id:'14', title:'Star Wars Rebels – Season 1',       type:'animated', releaseDate:'2014-10-03', releaseDateDisplay:'Oct 3, 2014',   uSort: -500,  uDisplay:'5 BBY' },
+  { id:'15', title:'Star Wars Rebels – Season 2',       type:'animated', releaseDate:'2015-10-14', releaseDateDisplay:'Oct 14, 2015',  uSort: -400,  uDisplay:'4 BBY' },
+  { id:'16', title:'The Force Awakens',                 type:'film',     releaseDate:'2015-12-18', releaseDateDisplay:'Dec 18, 2015',  uSort: 3400,  uDisplay:'34 ABY' },
+  { id:'17', title:'Star Wars Rebels – Season 3',       type:'animated', releaseDate:'2016-09-24', releaseDateDisplay:'Sep 24, 2016',  uSort: -300,  uDisplay:'3 BBY' },
+  { id:'18', title:'Rogue One: A Star Wars Story',      type:'film',     releaseDate:'2016-12-16', releaseDateDisplay:'Dec 16, 2016',  uSort: -5,    uDisplay:'0 BBY' },
+  { id:'19', title:'Forces of Destiny',                 type:'animated', releaseDate:'2017-07-03', releaseDateDisplay:'Jul 3, 2017',   uSort: null,  uDisplay:'Various' },
+  { id:'20', title:'Star Wars Rebels – Season 4',       type:'animated', releaseDate:'2017-10-16', releaseDateDisplay:'Oct 16, 2017',  uSort: -150,  uDisplay:'2–1 BBY' },
+  { id:'21', title:'The Last Jedi',                     type:'film',     releaseDate:'2017-12-15', releaseDateDisplay:'Dec 15, 2017',  uSort: 3400,  uDisplay:'34 ABY' },
+  { id:'22', title:'Solo: A Star Wars Story',           type:'film',     releaseDate:'2018-05-25', releaseDateDisplay:'May 25, 2018',  uSort: -1050, uDisplay:'13–10 BBY' },
+  { id:'23', title:'Star Wars Resistance – Season 1',   type:'animated', releaseDate:'2018-10-07', releaseDateDisplay:'Oct 7, 2018',   uSort: 3400,  uDisplay:'34 ABY' },
+  { id:'24', title:'Star Wars Resistance – Season 2',   type:'animated', releaseDate:'2019-10-06', releaseDateDisplay:'Oct 6, 2019',   uSort: 3450,  uDisplay:'34–35 ABY' },
+  { id:'25', title:'The Mandalorian – Season 1',        type:'live',     releaseDate:'2019-11-12', releaseDateDisplay:'Nov 12, 2019',  uSort: 900,   uDisplay:'9 ABY' },
+  { id:'26', title:'The Rise of Skywalker',             type:'film',     releaseDate:'2019-12-20', releaseDateDisplay:'Dec 20, 2019',  uSort: 3500,  uDisplay:'35 ABY' },
+  { id:'27', title:'The Clone Wars – Season 7',         type:'animated', releaseDate:'2020-02-21', releaseDateDisplay:'Feb 21, 2020',  uSort: -1900, uDisplay:'19 BBY' },
+  { id:'28', title:'The Mandalorian – Season 2',        type:'live',     releaseDate:'2020-10-30', releaseDateDisplay:'Oct 30, 2020',  uSort: 900,   uDisplay:'9 ABY' },
+  { id:'29', title:'The Bad Batch – Season 1',          type:'animated', releaseDate:'2021-05-04', releaseDateDisplay:'May 4, 2021',   uSort: -1900, uDisplay:'19 BBY' },
+  { id:'30', title:'The Book of Boba Fett',             type:'live',     releaseDate:'2021-12-29', releaseDateDisplay:'Dec 29, 2021',  uSort: 900,   uDisplay:'9 ABY' },
+  { id:'31', title:'Obi-Wan Kenobi',                    type:'live',     releaseDate:'2022-05-27', releaseDateDisplay:'May 27, 2022',  uSort: -900,  uDisplay:'9 BBY' },
+  { id:'32', title:'Andor – Season 1',                  type:'live',     releaseDate:'2022-09-21', releaseDateDisplay:'Sep 21, 2022',  uSort: -500,  uDisplay:'5 BBY' },
+  { id:'33', title:'Tales of the Jedi',                 type:'animated', releaseDate:'2022-10-26', releaseDateDisplay:'Oct 26, 2022',  uSort: null,  uDisplay:'Various' },
+  { id:'34', title:'The Bad Batch – Season 2',          type:'animated', releaseDate:'2023-01-04', releaseDateDisplay:'Jan 4, 2023',   uSort: -1800, uDisplay:'18 BBY' },
+  { id:'35', title:'The Mandalorian – Season 3',        type:'live',     releaseDate:'2023-03-01', releaseDateDisplay:'Mar 1, 2023',   uSort: 900,   uDisplay:'9 ABY' },
+  { id:'36', title:'Young Jedi Adventures – Season 1',  type:'animated', releaseDate:'2023-05-04', releaseDateDisplay:'May 4, 2023',   uSort: -23200,uDisplay:'~232 BBY' },
+  { id:'37', title:'Ahsoka – Season 1',                 type:'live',     releaseDate:'2023-08-22', releaseDateDisplay:'Aug 22, 2023',  uSort: 900,   uDisplay:'9 ABY' },
+  { id:'38', title:'The Bad Batch – Season 3',          type:'animated', releaseDate:'2024-02-21', releaseDateDisplay:'Feb 21, 2024',  uSort: -1750, uDisplay:'18–17 BBY' },
+  { id:'39', title:'Tales of the Empire',               type:'animated', releaseDate:'2024-05-04', releaseDateDisplay:'May 4, 2024',   uSort: null,  uDisplay:'Various' },
+  { id:'40', title:'The Acolyte – Season 1',            type:'live',     releaseDate:'2024-06-04', releaseDateDisplay:'Jun 4, 2024',   uSort: -13200,uDisplay:'~132 BBY' },
+  { id:'41', title:'Young Jedi Adventures – Season 2',  type:'animated', releaseDate:'2024-08-14', releaseDateDisplay:'Aug 14, 2024',  uSort: -23200,uDisplay:'~232 BBY' },
+  { id:'42', title:'Skeleton Crew',                     type:'live',     releaseDate:'2024-12-03', releaseDateDisplay:'Dec 3, 2024',   uSort: 900,   uDisplay:'9 ABY' },
+  { id:'43', title:'Andor – Season 2',                  type:'live',     releaseDate:'2025-04-22', releaseDateDisplay:'Apr 22, 2025',  uSort: -250,  uDisplay:'4–1 BBY' },
+  { id:'44', title:'Tales of the Underworld',           type:'animated', releaseDate:'2025-05-04', releaseDateDisplay:'May 4, 2025',   uSort: null,  uDisplay:'Various' },
+  { id:'45', title:'Young Jedi Adventures – Season 3',  type:'animated', releaseDate:'2025-12-08', releaseDateDisplay:'Dec 8, 2025',   uSort: -23200,uDisplay:'~232 BBY' },
+  { id:'46', title:'Maul: Shadow Lord – Season 1',      type:'animated', releaseDate:'2026-04-06', releaseDateDisplay:'Apr 6, 2026',   uSort: -1800, uDisplay:'18 BBY' },
+  { id:'47', title:'The Mandalorian & Grogu',           type:'film',     releaseDate:'2026-05-22', releaseDateDisplay:'May 22, 2026',  uSort: 900,   uDisplay:'9 ABY' },
+];
+
+const STORAGE_KEY = 'sw_seen_v2';
+const total = ENTRIES.length;
+let currentOrder = 'release';
+let currentFilter = 'all';
+
+// ── SEEN STATE ──
+function getSeen() {
+  try { return JSON.parse(localStorage.getItem(STORAGE_KEY)) || []; } catch { return []; }
+}
+function saveSeen(arr) { localStorage.setItem(STORAGE_KEY, JSON.stringify(arr)); }
+
+// ── SABER PROGRESS ──
+function updateProgress() {
+  const seen = getSeen();
+  const count = seen.length;
+  const pct = (count / total) * 100;
+  const blade = document.getElementById('saberBlade');
+  blade.style.width = pct + '%';
+  // Only show glow/tip when lit
+  blade.style.opacity = count === 0 ? '0' : '1';
+  document.getElementById('saberCount').innerHTML =
+    count + ' <span>/ ' + total + ' seen</span>';
+}
+
+// ── RENDER ──
+function badgeClass(type) {
+  return type === 'film' ? 'badge-film' : type === 'live' ? 'badge-live' : 'badge-animated';
+}
+function badgeLabel(type) {
+  return type === 'film' ? 'Film' : type === 'live' ? 'Live-Action' : 'Animated';
+}
+
+function buildEntries() {
+  const seen = getSeen();
+  // Determine sort order
+  let sorted;
+  if (currentOrder === 'release') {
+    sorted = [...ENTRIES].sort((a,b) => a.releaseDate.localeCompare(b.releaseDate));
+  } else {
+    // universe order: nulls (Various) go at end, sorted by releaseDate among themselves
+    const withDate  = ENTRIES.filter(e => e.uSort !== null).sort((a,b) => a.uSort - b.uSort || a.releaseDate.localeCompare(b.releaseDate));
+    const withoutDate = ENTRIES.filter(e => e.uSort === null).sort((a,b) => a.releaseDate.localeCompare(b.releaseDate));
+    sorted = [...withDate, ...withoutDate];
+  }
+
+  const list = document.getElementById('entry-list');
+  list.innerHTML = '';
+
+  sorted.forEach((e, idx) => {
+    const isSeen = seen.includes(e.id);
+    const isHidden = !matchesFilter(e, isSeen);
+
+    const el = document.createElement('div');
+    el.className = 'entry' + (isSeen ? ' seen' : '') + (isHidden ? ' hidden' : '');
+    el.dataset.id = e.id;
+    el.dataset.type = e.type;
+
+    el.innerHTML = `
+      <div class="check-wrap"><div class="check-box"></div></div>
+      <div class="entry-num">${String(idx+1).padStart(2,'0')}</div>
+      <div class="entry-info">
+        <div class="entry-title">${e.title}</div>
+        <div class="entry-dates">
+          <span class="entry-date">${e.releaseDateDisplay}</span>
+          <span class="entry-universe">${e.uDisplay}</span>
+        </div>
+      </div>
+      <div class="type-badge ${badgeClass(e.type)}">${badgeLabel(e.type)}</div>
+    `;
+
+    el.addEventListener('click', () => toggleEntry(e.id, el));
+    list.appendChild(el);
+  });
+}
+
+function matchesFilter(e, isSeen) {
+  if (currentFilter === 'all') return true;
+  if (currentFilter === 'film') return e.type === 'film';
+  if (currentFilter === 'live') return e.type === 'live';
+  if (currentFilter === 'animated') return e.type === 'animated';
+  if (currentFilter === 'unseen') return !isSeen;
+  return true;
+}
+
+function applyFilter() {
+  const seen = getSeen();
+  document.querySelectorAll('.entry').forEach(el => {
+    const id = el.dataset.id;
+    const entry = ENTRIES.find(e => e.id === id);
+    const isSeen = seen.includes(id);
+    el.classList.toggle('hidden', !matchesFilter(entry, isSeen));
+  });
+}
+
+function toggleEntry(id, el) {
+  let seen = getSeen();
+  if (seen.includes(id)) {
+    seen = seen.filter(s => s !== id);
+    el.classList.remove('seen');
+  } else {
+    seen.push(id);
+    el.classList.add('seen');
+  }
+  saveSeen(seen);
+  updateProgress();
+  if (currentFilter === 'unseen') applyFilter();
+}
+
+// ── ORDER ──
+function setOrder(order) {
+  if (currentOrder === order) return;
+  currentOrder = order;
+  document.getElementById('orderSlider').className = 'order-slider' + (order === 'universe' ? ' right' : '');
+  document.getElementById('btnRelease').classList.toggle('active', order === 'release');
+  document.getElementById('btnUniverse').classList.toggle('active', order === 'universe');
+  buildEntries();
+}
+
+// ── FILTER BUTTONS ──
+document.querySelectorAll('.filter-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    currentFilter = btn.dataset.filter;
+    applyFilter();
+  });
+});
+
+document.getElementById('markAll').addEventListener('click', () => {
+  const seen = ENTRIES.map(e => e.id);
+  saveSeen(seen);
+  document.querySelectorAll('.entry').forEach(el => el.classList.add('seen'));
+  updateProgress();
+  if (currentFilter === 'unseen') applyFilter();
+});
+
+document.getElementById('clearAll').addEventListener('click', () => {
+  saveSeen([]);
+  document.querySelectorAll('.entry').forEach(el => el.classList.remove('seen'));
+  updateProgress();
+  applyFilter();
+});
+
+// ── INIT ──
+buildEntries();
+updateProgress();
+
+
+// ─────────────────────────────────────────────
+// SPACE BACKGROUND CANVAS
+// ─────────────────────────────────────────────
+(function() {
+  const canvas = document.getElementById('space-canvas');
+  const ctx = canvas.getContext('2d');
+
+  let W, H;
+  const stars = [];
+  const nebulae = [];
+  const shootingStars = [];
+
+  function resize() {
+    W = canvas.width = window.innerWidth;
+    H = canvas.height = window.innerHeight;
+  }
+
+  // Star layers: small/dim, medium, bright
+  function initStars() {
+    stars.length = 0;
+    const count = Math.floor((W * H) / 2200);
+    for (let i = 0; i < count; i++) {
+      const layer = Math.random();
+      stars.push({
+        x: Math.random() * W,
+        y: Math.random() * H,
+        r: layer < 0.6 ? Math.random() * 0.8 + 0.2
+           : layer < 0.88 ? Math.random() * 1.2 + 0.8
+           : Math.random() * 1.8 + 1.2,
+        alpha: Math.random() * 0.5 + 0.3,
+        twinkleSpeed: Math.random() * 0.02 + 0.003,
+        twinkleOffset: Math.random() * Math.PI * 2,
+        // occasional color tint
+        hue: Math.random() < 0.15 ? (Math.random() < 0.5 ? 200 : 30) : 0,
+      });
+    }
+  }
+
+  // Nebula blobs
+  function initNebulae() {
+    nebulae.length = 0;
+    const configs = [
+      { x: 0.15, y: 0.25, rx: 0.28, ry: 0.18, color: '30,60,140',  alpha: 0.18 },
+      { x: 0.75, y: 0.15, rx: 0.22, ry: 0.14, color: '80,20,100',  alpha: 0.14 },
+      { x: 0.55, y: 0.70, rx: 0.30, ry: 0.20, color: '10,50,100',  alpha: 0.16 },
+      { x: 0.85, y: 0.55, rx: 0.18, ry: 0.13, color: '60,15,80',   alpha: 0.12 },
+      { x: 0.30, y: 0.80, rx: 0.20, ry: 0.12, color: '20,70,120',  alpha: 0.13 },
+    ];
+    configs.forEach(c => nebulae.push(c));
+  }
+
+  function drawNebulae() {
+    nebulae.forEach(n => {
+      const gx = n.x * W, gy = n.y * H;
+      const rx = n.rx * W, ry = n.ry * H;
+      // Use multiple layered radial gradients for soft nebula look
+      for (let pass = 0; pass < 3; pass++) {
+        const offsetX = (pass - 1) * rx * 0.15;
+        const offsetY = (pass - 1) * ry * 0.1;
+        const g = ctx.createRadialGradient(gx + offsetX, gy + offsetY, 0, gx, gy, Math.max(rx, ry));
+        const a = n.alpha * (1 - pass * 0.2);
+        g.addColorStop(0,   `rgba(${n.color},${a})`);
+        g.addColorStop(0.4, `rgba(${n.color},${a * 0.5})`);
+        g.addColorStop(1,   `rgba(${n.color},0)`);
+        ctx.save();
+        ctx.scale(1, ry / rx);
+        ctx.fillStyle = g;
+        ctx.beginPath();
+        ctx.arc(gx, gy * (rx / ry), rx, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+      }
+    });
+  }
+
+  function drawStars(t) {
+    stars.forEach(s => {
+      const twinkle = Math.sin(t * s.twinkleSpeed * 60 + s.twinkleOffset);
+      const a = s.alpha + twinkle * 0.2;
+      const r = s.r + (s.r > 1.2 ? twinkle * 0.3 : 0);
+
+      if (s.hue !== 0) {
+        // Colored star: blueish or golden
+        const col = s.hue === 200
+          ? `rgba(180,210,255,${a})`
+          : `rgba(255,230,160,${a})`;
+        ctx.fillStyle = col;
+      } else {
+        ctx.fillStyle = `rgba(255,255,255,${a})`;
+      }
+
+      if (s.r > 1.5) {
+        // Bright star: soft glow
+        const glow = ctx.createRadialGradient(s.x, s.y, 0, s.x, s.y, r * 4);
+        glow.addColorStop(0, s.hue === 200 ? `rgba(180,220,255,${a * 0.6})` : `rgba(255,255,255,${a * 0.6})`);
+        glow.addColorStop(1, 'rgba(0,0,0,0)');
+        ctx.fillStyle = glow;
+        ctx.beginPath();
+        ctx.arc(s.x, s.y, r * 4, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      ctx.fillStyle = s.hue !== 0
+        ? (s.hue === 200 ? `rgba(200,225,255,${a})` : `rgba(255,235,170,${a})`)
+        : `rgba(255,255,255,${a})`;
+      ctx.beginPath();
+      ctx.arc(s.x, s.y, Math.max(0.1, r), 0, Math.PI * 2);
+      ctx.fill();
+    });
+  }
+
+  // Occasional shooting star
+  function maybeSpawnShootingStar(t) {
+    if (Math.random() < 0.003) {
+      shootingStars.push({
+        x: Math.random() * W * 0.8,
+        y: Math.random() * H * 0.4,
+        len: Math.random() * 120 + 60,
+        speed: Math.random() * 6 + 4,
+        angle: Math.PI / 4 + (Math.random() - 0.5) * 0.3,
+        alpha: 1,
+        life: 1,
+      });
+    }
+  }
+
+  function drawShootingStars() {
+    for (let i = shootingStars.length - 1; i >= 0; i--) {
+      const s = shootingStars[i];
+      const dx = Math.cos(s.angle) * s.len;
+      const dy = Math.sin(s.angle) * s.len;
+      const g = ctx.createLinearGradient(s.x, s.y, s.x - dx, s.y - dy);
+      g.addColorStop(0, `rgba(255,255,255,${s.life})`);
+      g.addColorStop(1, 'rgba(255,255,255,0)');
+      ctx.strokeStyle = g;
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.moveTo(s.x, s.y);
+      ctx.lineTo(s.x - dx, s.y - dy);
+      ctx.stroke();
+
+      s.x += Math.cos(s.angle) * s.speed;
+      s.y += Math.sin(s.angle) * s.speed;
+      s.life -= 0.018;
+      if (s.life <= 0) shootingStars.splice(i, 1);
+    }
+  }
+
+  let lastT = 0;
+  function frame(t) {
+    t /= 1000;
+    ctx.clearRect(0, 0, W, H);
+
+    // Deep space gradient bg
+    const bg = ctx.createLinearGradient(0, 0, W * 0.3, H);
+    bg.addColorStop(0,   '#020610');
+    bg.addColorStop(0.5, '#03060e');
+    bg.addColorStop(1,   '#020510');
+    ctx.fillStyle = bg;
+    ctx.fillRect(0, 0, W, H);
+
+    drawNebulae();
+    drawStars(t);
+    // maybeSpawnShootingStar(t);
+    // drawShootingStars();
+
+    lastT = t;
+    requestAnimationFrame(frame);
+  }
+
+  function init() {
+    resize();
+    initStars();
+    initNebulae();
+    requestAnimationFrame(frame);
+  }
+
+  window.addEventListener('resize', () => {
+    resize();
+    initStars();
+    initNebulae();
+  });
+
+  init();
+})();
+</script>
+</body>
+</html>
